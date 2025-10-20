@@ -1,0 +1,13 @@
+# env files
+.env
+youtube_env
+
+docs\
+#test files
+tests\
+
+#cachefiles
+.cache
+.mypy_cache
+__pycache__\
+.pytest_cache
