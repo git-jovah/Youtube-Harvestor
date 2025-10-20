@@ -2,7 +2,7 @@
 .env
 youtube_env
 
-docs\
+docs
 #test files
 tests\
 
