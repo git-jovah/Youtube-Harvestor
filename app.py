@@ -63,8 +63,9 @@ if len(channel_list)<=1:
             st.divider()
             st.markdown(":red[Table] : channel")
             data = main.DATA_POOL["channel_details"]
-            df = pd.DataFrame(data,columns = list(data.keys()))
-            df.drop("channel_description",axis=1,inplace=True)
+            df = pd.DataFrame(data,columns = data.keys())
+            df.drop("channel_description",axis=1)
+            # st.markdown(data)
             st.table(df)
 
         if any(df := pd.DataFrame(main.DATA_POOL['playlist_details'],columns=main.DATA_POOL["playlist_details"].keys(),index=[i for i in range(0,len(main.DATA_POOL["playlist_details"]["playlist_name"]))])):
@@ -147,7 +148,7 @@ elif len(channel_list) > 1:
         pl_det_df = pl_det_df.merge(df4,on=list(pl_det_df.columns),how="outer")
 
     else:
-        ch_det_df.drop("channel_description",axis=1,inplace=True)
+        ch_det_df.drop("channel_description",axis=1)
         st.table(ch_det_df)
         st.table(pl_det_df)
     
@@ -223,6 +224,14 @@ elif len(channel_list)<=1 and len(channel_list)!=0:
     #     video_data.merge(temp_sc,on="video_id",how="outer")
     # st.table(video_data)
 
+_,u1,_ = st.columns([0.3,0.3,0.3])
+if len(channel_list)>=1:
+    if u1.button("upload to database",use_container_width=True):
+        from database import db_run
+        if db_run():
+            st.balloons()
+
+
 
 
 
@@ -233,3 +242,4 @@ elif len(channel_list)<=1 and len(channel_list)!=0:
 
 #TODO: for single channel display likes,view count,dislikes.
 #TODO: also conncet to the database
+# if there is single channel the value has to be a string instead of stroing it in a list

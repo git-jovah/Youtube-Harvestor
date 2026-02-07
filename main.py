@@ -3,12 +3,31 @@ from dotenv import load_dotenv
 import os
 import streamlit as st
 import pandas as pd
+import csv
 
 load_dotenv()
 key = os.getenv("API_KEY")
 youtube = build('youtube', 'v3', developerKey=key)
 DATA_POOL = dict({})
 playlistitems_results = 0
+
+# def upload_to_db():
+    # all playlist data
+    # DATA_POOL["playlist_details"]
+    # all vid data
+    # DATA_POOL["video_details"]
+    # with open("./tests/channel_data.csv","w",encoding="utf-8",newline="") as file:
+    #     # selected channel data
+    #     field_names =  DATA_POOL["channel_details"].keys()
+    #     writer = csv.DictWriter(file,fieldnames=field_names)
+    #     writer.writeheader()
+    #     writer.writerow(DATA_POOL.get("channel_details"))
+
+    # with open("./tests/playlist_data.csv","w") as file:
+    #     field_names = DATA_POOL["playlist_details"].keys()
+    #     writer = csv.DictWriter(file,fieldnames=field_names)
+    #     writer.writeheader()
+    #     writer.writerow(DATA_POOL["playlist_details"])
 
 def channel_exist(c):
     response = youtube.channels().list(
@@ -100,8 +119,7 @@ def get_playlistItems(playlist_id,count = 3):
         "item_name" : [],
         "item_id"   : [],
         "item_date" : [],
-        "item_status"    : [],
-
+        "item_status": [],
     }
 
     response = youtube.playlistItems().list(
@@ -218,7 +236,7 @@ def get_video_details(video_id):
         DATA_POOL["video_details"] = video_details
     # st.write(video_id)
 
-def get_channel_info(ch):
+def get_channel_info(ch,n=1): # n is temp for channel conunt
     # channel_id = get_channel_id_by_username(ch)
     channel_details = {
         "channel_id":[],
@@ -238,13 +256,22 @@ def get_channel_info(ch):
     # st.write("-"*10)
     try :
         if any(response["items"]):
-            channel_details["channel_id"].append(response['items'][0]["id"])
-            channel_details["channel_name"].append(response['items'][0]["snippet"]["title"])
-            channel_details["channel_views"].append(response['items'][0]['statistics']['viewCount'])
-            channel_details["channel_videos"].append(response['items'][0]['statistics']['videoCount'])
-            channel_details["channel_subscriberCount"].append(response['items'][0]['statistics']['subscriberCount'])
-            channel_details["channel_description"].append(response['items'][0]["snippet"]["description"])
-            channel_details["channel_status"].append(response['items'][0]['status']['privacyStatus'])
+            if n==10:
+                channel_details["channel_id"]                = response['items'][0]["id"]
+                channel_details["channel_name"]              = response['items'][0]["snippet"]["title"]
+                channel_details["channel_views"]             = response['items'][0]['statistics']['viewCount']
+                channel_details["channel_videos"]            = response['items'][0]['statistics']['videoCount']
+                channel_details["channel_subscriberCount"]   = response['items'][0]['statistics']['subscriberCount']
+                channel_details["channel_description"]       = response['items'][0]["snippet"]["description"]
+                channel_details["channel_status"]            = response['items'][0]['status']['privacyStatus']
+            else:
+                channel_details["channel_id"].append(response['items'][0]["id"])
+                channel_details["channel_name"].append(response['items'][0]["snippet"]["title"])
+                channel_details["channel_views"].append(response['items'][0]['statistics']['viewCount'])
+                channel_details["channel_videos"].append(response['items'][0]['statistics']['videoCount'])
+                channel_details["channel_subscriberCount"].append(response['items'][0]['statistics']['subscriberCount'])
+                channel_details["channel_description"].append(response['items'][0]["snippet"]["description"])
+                channel_details["channel_status"].append(response['items'][0]['status']['privacyStatus'])
         else:
             st.warning("no channel found")
     except Exception as e:
@@ -284,7 +311,7 @@ def get_every_video_from_playlists(channel: str | None = None) -> pd.DataFrame:
     else:
         get_channel_info(channel)
         return get_every_video_from_playlists()
-
+ 
 def get_every_video_in_playlist(playlistId: str | None = None) -> pd.DataFrame:
     """
     returns DataFrame that consits of all videos info in a playlist
