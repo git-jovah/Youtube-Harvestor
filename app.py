@@ -1,245 +1,144 @@
-import streamlit as st,pandas as pd,main
-from main import get_channel_info
+import streamlit as st
+import pandas as pd
 import numpy as np
+import asyncio
+import src
+import plotly.express as px
+import plotly.figure_factory as ff
+import database as db
 
-st.set_page_config("youtube harvester",layout="wide")
-channel_list = set()
+st.set_page_config("YouTube Harvester", layout="wide")
+st.title(":red[YOU]TUBE HARVESTER")
 
-if "selected_channel" not in st.session_state:
-    st.session_state.selected_channel = None
+if "selected_channels" not in st.session_state:
+    st.session_state.selected_channels = []
 if "selected_playlist" not in st.session_state:
     st.session_state.selected_playlist = None
 if "selected_video" not in st.session_state:
     st.session_state.selected_video = None
 
-h1,_,h2 = st.columns([0.7,0.7,0.1])
-h1.title(":red[YOU]TUBE HARVESTER",anchor=False)
-if h2.button("?",help="help"):
-    st.toast("""Application Guide:      
-                1. It harvestes data using channel names.   
-                2. The channel should be active.    
-                3. The channel should contain at least one playlist.    
-                4. It collects all the data from a channel.     
-            """,duration="short")
-search =  st.text_input('Enter channels:',placeholder="Channel names(apple,Tseries,...)",)
-# if st.button("search",use_container_width=True):
-st.write("channels : ")
-ssl = set(search.split(","))
-a = st.columns([0.3]*len(ssl))
-c1,c2,c3 = st.columns([0.3,0.3,0.3])
+_, help_col, _ = st.columns([0.8, 0.1, 0.1])
+if help_col.button("?", help="Click for help"):
+    st.toast("""Application Guide:  
+1. Enter one or more channels separated by comma.   
+2. The channel should be active.    
+3. Select channels to fetch details.    
+4. View playlists and video details in tables.  
+5. Compare multiple channels via graphs.
+""", duration="short")
 
+search_input = st.text_input("Enter channel handles or usernames (comma separated):", placeholder="@apple,@Tseries,...")
+selected_channels = []
 
-if search:
-    # main.get_channel_columns(search)
-    for x,channel in enumerate(ssl):
-        channel = channel.strip()
-        # if a[x].button(channel,use_container_width=True,key=f"{channel}"):
-        if a[x].checkbox(channel):
-            if main.channel_exist(channel):
-                st.session_state.selected_channel = channel
-                st.success(channel)
-                channel_list.add(channel)
+if search_input:
+    channels_input = set([c.strip() for c in search_input.split(",")])
+    st.write("Select channels to fetch details:")
+    checkboxes = st.columns([0.2] * len(channels_input))
+    for i, channel in enumerate(channels_input):
+        if checkboxes[i].checkbox(channel):
+            selected_channels.append(channel)
 
-            elif main.channel_exist_by_name(channel):
-                st.session_state.selected_channel = channel
-                st.success(channel)
-                channel_list.add(channel)
-            else:
-                st.warning("channel does not exist or channel activity may not be irregular !")
-                st.session_state.selected_channel = None
+st.session_state.selected_channels = selected_channels
 
-if len(channel_list)<=1:
-    if channel := st.session_state.selected_channel:
-        channel_id = main.get_channel_id_by_handle(channel) if (channel[0] == '@') else main.get_channel_id_by_username(channel)
-        if get_channel_info(channel_id):
-            playlist_names = main.DATA_POOL["playlist_details"]["playlist_name"]
-            selected_playlist = c1.selectbox(
-                "select playlist",
-                options=playlist_names,
-                index=playlist_names.index(st.session_state.selected_playlist) if st.session_state.selected_playlist in playlist_names else 0
-                )
-            video_count = c2.number_input("videos from playlist",max_value=10 if main.playlistitems_results <= 3 else main.playlistitems_results,min_value=3)
-            
-            st.divider()
-            st.markdown(":red[Table] : channel")
-            data = main.DATA_POOL["channel_details"]
-            df = pd.DataFrame(data,columns = data.keys())
-            df.drop("channel_description",axis=1)
-            # st.markdown(data)
-            st.table(df)
+c1,c2 = st.columns([0.5,0.5])
+if not selected_channels:
+    st.info("Please select at least one channel above.")
+    st.stop()
 
-        if any(df := pd.DataFrame(main.DATA_POOL['playlist_details'],columns=main.DATA_POOL["playlist_details"].keys(),index=[i for i in range(0,len(main.DATA_POOL["playlist_details"]["playlist_name"]))])):
-            st.write()
-            st.divider()
-            st.markdown(":red[Table] : playlists")
-            st.table(df)
-        else:
-            st.write()
-            st.divider()
-            st.markdown(":red[Table] : playlists")
-            st.error("No playlists found !")
-        if selected_playlist:
-            temp_map = dict(zip(main.DATA_POOL["playlist_details"]["playlist_name"],main.DATA_POOL["playlist_details"]["playlist_id"]))
-            main.get_playlistItems(temp_map[selected_playlist],count = video_count)
-            item_names = main.DATA_POOL['playlist_items'].get("item_name", [])
-            selected_video = c3.selectbox("Select video",options=item_names,
-            index=item_names.index(st.session_state.selected_video) if st.session_state.selected_video in item_names else 0 if item_names else None,
-            )
-            
-            st.session_state.selected_video = selected_video
-            data = main.DATA_POOL["playlist_items"]
-            if any(df := pd.DataFrame(data,columns=data.keys())):
-                st.write()
-                st.divider()
-                st.markdown(f":red[Table] : \"{selected_playlist}\" items")
-                st.table(df)
-            else:
-                st.write()
-                st.divider()
-                st.markdown(f":red[Table] : \"{selected_playlist}\" items")
-                st.error("No playlist items found !")
-            pdet = main.DATA_POOL["playlist_items"]
-            temp_video_map = dict(zip(pdet['item_name'],pdet['item_id']))
-            if selected_video:
-                main.get_video_details(temp_video_map[selected_video])
-                
-                total_videos = main.get_every_video_from_playlists(channel=channel)
-                # st.table(total_videos)
-                sc_data = main.DATA_POOL["video_details"]
-                sc_data.pop("video_description")
-                # wanted_data_gather(selected_video)
-                # data = main.DATA_POOL["extra_det"]
-                st.divider()
-                st.write(f":red[Table] : \"{selected_video} \" details")
-                st.table(sc_data)
-                # main.get_video_details('rzX5m2UZXFo')
-                # st.table(main.DATA_POOL['video_details'])
-                # if any(df := pd.DataFrame(data,columns=data.keys(),index=[0])):
-                #     st.write()
-                #     st.write("-"*50)
-                #     st.table(df)
-                # else:
-                #     st.write()
-                #     st.write("-"*50)
-                #     st.warning("no video details found")
-        # st.write(main.DATA_POOL)
+channels_data = []
+for ch in st.session_state.selected_channels:
+    data = asyncio.run(src.get_channel_info(ch))
+    if data:
+        channels_data.append({
+            "channel_id": data["channel_id"][0],
+            "channel_name": data["channel_name"][0],
+            "channel_views": data["views"][0],
+            "channel_subscriberCount": data["subscribers"][0],
+            "channel_videos": data["videos"][0],
+            "channel_description": data["description"][0],
+            "channel_status": data["status"][0]
+        })
 
-            main.get_every_video_in_playlist(temp_map[selected_playlist])
+if not channels_data:
+    st.error("Channel info not found!")
+    st.stop()
 
-elif len(channel_list) > 1:
-    
-    channel_details_dict = {}
-    playlist_details_dict = {}
-    for channel in channel_list:
-        channel_id = main.get_channel_id_by_handle(channel) if (channel[0] == '@') else main.get_channel_id_by_username(channel)
-        if get_channel_info(channel_id):
-            ch_det = main.DATA_POOL["channel_details"]
-            pl_det = main.DATA_POOL["playlist_details"]
-            channel_details_dict[channel] = ch_det
-            playlist_details_dict[channel] = pl_det
-    ch_det_df = pd.DataFrame(channel_details_dict[list(channel_list)[0]])
-    pl_det_df = pd.DataFrame(playlist_details_dict[list(channel_list)[0]])
+channels_df = pd.DataFrame(channels_data)
+# Convert numeric columns
+for col in ["channel_views", "channel_subscriberCount", "channel_videos"]:
+    channels_df[col] = pd.to_numeric(channels_df[col], errors="coerce").fillna(0)
 
-    for ch_no in range(1,len(channel_list)):
-        df2 = pd.DataFrame(channel_details_dict[list(channel_list)[ch_no]])
-        df4 = pd.DataFrame(playlist_details_dict[list(channel_list)[ch_no]])
+st.divider()
+st.subheader(":red[Table] : Channels")
+st.dataframe(channels_df, use_container_width=True)
 
-        ch_det_df = ch_det_df.merge(df2,on=list(ch_det_df.columns),how="outer")
-        pl_det_df = pl_det_df.merge(df4,on=list(pl_det_df.columns),how="outer")
+st.divider()
+st.subheader(":red[Graphs] : Channels Comparison")
 
-    else:
-        ch_det_df.drop("channel_description",axis=1)
-        st.table(ch_det_df)
-        st.table(pl_det_df)
-    
-else:
-    pass
+fig1 = px.bar(channels_df, x="channel_name", y="channel_subscriberCount", title="Subscribers by Channel")
+fig2 = px.bar(channels_df, x="channel_name", y="channel_videos", title="Videos Count by Channel")
+fig3 = px.bar(channels_df, x="channel_name", y="channel_views", title="Total Views by Channel")
 
+graph_col1, graph_col2, graph_col3 = st.columns([0.3, 0.3, 0.3])
+graph_col1.plotly_chart(fig1, use_container_width=True)
+graph_col2.plotly_chart(fig2, use_container_width=True)
+graph_col3.plotly_chart(fig3, use_container_width=True)
 
-x = np.random.randint(20,100,20).reshape(20,1)
-y = np.random.randint(20,100,20).reshape(20,1)
+# 2D Density Plots
+fig4 = ff.create_2d_density(x=channels_df["channel_views"], y=channels_df["channel_subscriberCount"], title="Views vs Subscribers")
+fig5 = ff.create_2d_density(x=channels_df["channel_views"], y=channels_df["channel_videos"], title="Views vs Videos")
+fig6 = ff.create_2d_density(x=channels_df["channel_subscriberCount"], y=channels_df["channel_videos"], title="Subscribers vs Videos")
 
-# dt = pd.DataFrame(np.hstack([x,y]),columns=("row","col"),)
-# dt = pd.DataFrame({'row':[0,255],'col':[30,200]})
-# st.table(dt)
-# st.bar_chart(dt,x='row',y='col')
+st.plotly_chart(fig4)
+st.plotly_chart(fig5)
+st.plotly_chart(fig6)
 
-# import plotly.figure_factory as ff
-# ff.create_
-# st.plotly_chart()
+if len(st.session_state.selected_channels) == 1:
+    channel_id = channels_df["channel_id"].iloc[0]
 
-if len(channel_list)>1:
-    import plotly.figure_factory as ff
-    details = {"ch_name":[],"view_count":[],"sub_count":[],"vid_count":[]}
-    st.divider()
-    div1,div2,div3 = st.columns([0.3,0.3,0.3])
-    for channel in channel_list:
-        if get_channel_info(main.get_channel_id_by_username(channel)):
-            ch_grh = main.DATA_POOL["channel_details"]
-            details["ch_name"].append(ch_grh["channel_name"][0])
-            details["view_count"].append(int(ch_grh["channel_views"][0]))
-            details["sub_count"].append(int(ch_grh["channel_subscriberCount"][0]))
-            details["vid_count"].append(int(ch_grh["channel_videos"][0]))
+    @st.cache_data
+    def fetch_playlists(cid):
+        return asyncio.run(src.get_playlists(cid))
 
-    dat = pd.DataFrame(details)
-    # st.table(dat)
-    # st.write(dat)
-    div1.bar_chart(dat,x="ch_name",y="sub_count",x_label="channels",y_label="subscribers")
-    div2.bar_chart(dat,x="ch_name",y="vid_count",x_label="channels",y_label="videos")
-    div3.bar_chart(dat,x="ch_name",y="view_count",x_label="channels",y_label="views")
+    playlists = fetch_playlists(channel_id)
+    pl_df = pd.DataFrame(playlists)
 
     st.divider()
-    st.line_chart(dat,x="ch_name",y="sub_count",)
-    # fig = ff.create_distplot([dat["vid_count"],dat["view_count"],dat["sub_count"]],group_labels=dat["ch_name"],bin_size=10)
-    fig = ff.create_2d_density(x=dat["view_count"],y=dat["sub_count"],title="Relation between views and subs")
-    fig1 = ff.create_2d_density(x=dat["view_count"],y=dat["vid_count"],title="Relation between views and videos")
-    fig2 = ff.create_2d_density(x=dat["sub_count"],y=dat["vid_count"],title="Relation between subs and videos")
-    st.plotly_chart(fig)
-    st.plotly_chart(fig1)
-    st.plotly_chart(fig2)
-elif len(channel_list)<=1 and len(channel_list)!=0:
-    
-    details = {"ch_name":[],"view_count":[],"sub_count":[],"vid_count":[]}
-    st.divider()
-    div1,div2,div3 = st.columns([0.3,0.3,0.3])
-    for channel in channel_list:
-        if get_channel_info(main.get_channel_id_by_username(channel)):
-            ch_grh = main.DATA_POOL["channel_details"]
-            
-            details["ch_name"].append(ch_grh["channel_name"][0])
-            details["view_count"].append(int(ch_grh["channel_views"][0]))
-            details["sub_count"].append(int(ch_grh["channel_subscriberCount"][0]))
-            details["vid_count"].append(int(ch_grh["channel_videos"][0]))
+    st.subheader(":red[Table] : Playlists")
+    if not pl_df.empty:
+        st.dataframe(pl_df, use_container_width=True)
 
-    dat = pd.DataFrame(details)
-    # st.table(dat)
-    # st.write(dat)
-    div1.bar_chart(dat,x="ch_name",y="sub_count",x_label="channel",y_label="subscribers")
-    div2.bar_chart(dat,x="ch_name",y="vid_count",x_label="channel",y_label="videos")
-    div3.bar_chart(dat,x="ch_name",y="view_count",x_label="channel",y_label="views")
-    # video_data = pd.DataFrame(sc_data)
-    # for pl_item in main.DATA_POOL["playlist_items"]["item_id"]:
-    #     temp_sc = pd.DataFrame(main.get_video_details(pl_item))
-    #     st.table(temp_sc)
-    #     video_data.merge(temp_sc,on="video_id",how="outer")
-    # st.table(video_data)
+        selected_playlist = c1.selectbox("Select Playlist", pl_df["playlist_name"])
+        playlist_id = pl_df.loc[pl_df["playlist_name"] == selected_playlist, "playlist_id"].values[0]
 
-_,u1,_ = st.columns([0.3,0.3,0.3])
-if len(channel_list)>=1:
-    if u1.button("upload to database",use_container_width=True):
-        from database import db_run
-        if db_run():
+        @st.cache_data
+        def fetch_videos(pid):
+            return asyncio.run(src.get_playlist_items(pid))
+
+        videos = fetch_videos(playlist_id)
+        vid_df = pd.DataFrame(videos)
+        st.divider()
+        st.subheader(f":red[Table] : '{selected_playlist}' Items")
+        st.dataframe(vid_df, use_container_width=True)
+
+        selected_video = c2.selectbox("Select Video", vid_df["video_title"])
+        video_id = vid_df.loc[vid_df["video_title"] == selected_video, "video_id"].values[0]
+
+        @st.cache_data
+        def fetch_video_details(vid_id):
+            return asyncio.run(src.get_video_details(vid_id))
+
+        video_details = fetch_video_details(video_id)
+        st.divider()
+        st.subheader(f":red[Table] : '{selected_video}' Details")
+        st.dataframe(pd.DataFrame([video_details]), use_container_width=True)
+
+_, upload_col, _ = st.columns([0.4, 0.2, 0.4])
+if upload_col.button("Upload to Database", use_container_width=True):
+    with st.spinner("Uploading data to database..."):
+        success = db.db_run(channels_df, pl_df if 'pl_df' in locals() else None, vid_df if 'vid_df' in locals() else None)
+        if success:
+            st.success("Data uploaded successfully!")
             st.balloons()
-
-
-
-
-
-
-
-
-#TODO: add additional functionality to the get_video_details() so it gets the details of all the videos not only one
-
-#TODO: for single channel display likes,view count,dislikes.
-#TODO: also conncet to the database
-# if there is single channel the value has to be a string instead of stroing it in a list
+        else:
+            st.error("Failed to upload data.")
